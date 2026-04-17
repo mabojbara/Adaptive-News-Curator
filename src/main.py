@@ -1,21 +1,33 @@
 import sys
 from src.models import UserProfile, Article
 from src.agent import NewsAgent
+from src.database import init_db, save_profile, load_profile
 
 def main():
+    init_db()
     agent = NewsAgent()
     print("--- Personalized News Curator ---")
     
-    # Initial setup
-    topics_str = input("Enter 3 topics you are interested in (comma separated): ")
-    initial_topics = [t.strip() for t in topics_str.split(",") if t.strip()]
-    
-    profile = UserProfile(interests=initial_topics)
-    article_queue = []
+    # Load existing profile or start new
+    profile = load_profile()
+    if profile:
+        print(f"\n[System] Found existing profile for: {', '.join(profile.interests)}")
+        resume = input("Would you like to continue with this profile? (y/n): ").lower()
+        if resume != 'y':
+            profile = None
 
+    if not profile:
+        # Initial setup
+        topics_str = input("Enter 3 topics you are interested in (comma separated): ")
+        initial_topics = [t.strip() for t in topics_str.split(",") if t.strip()]
+        profile = UserProfile(interests=initial_topics)
+        save_profile(profile)
+
+    article_queue = []
     # Initial seeding
     print("\n[System] Curating your first batch of news...")
-    for topic in initial_topics[:3]:
+    seed_topics = profile.interests[:3]
+    for topic in seed_topics:
         article = agent.get_next_article(profile, topic)
         article_queue.append(article)
 
@@ -45,6 +57,7 @@ def main():
         # Update Bio (The Agentic Feedback Loop)
         print("[System] Updating your interest model...")
         profile.refined_bio = agent.update_profile(profile, current)
+        save_profile(profile)
         print(f"New Insight: {profile.refined_bio}")
 
         # Fetch a new article based on interests to keep the queue going
